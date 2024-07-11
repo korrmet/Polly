@@ -1,0 +1,3 @@
+[submodule "Independency"]
+	path = Independency
+	url = git@github.com:korrmet/Independency.git

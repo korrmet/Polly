@@ -1,0 +1,11 @@
+(root) {
+  (0)<string>[@q Hi, how are you? @a Hello. I'm fine. @e]
+  (1)<string>[@q Hello. How you doing? @a Hello. I'm fine. @e]
+  (2)<string>[@q Wazzup! @a Hello. I'm fine. @e]
+  (3)<string>[@q Hello. How low? @a Hello. I'm fine. @e]
+  (4)<string>[@q What's your name? @a My name is Polly. @e]
+  (5)<string>[@q How can I call you? @a My name is Polly. @e]
+  (6)<string>[@q Do you want a cracker? @a Yes. @e]
+  (7)<string>[@q Do you wanna cracker? @a Yes. @e]
+  (7)<string>[@q Polly wants a cracker? @a Yes, I want. @e]
+}
