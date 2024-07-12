@@ -7,5 +7,5 @@
   (5)<string>[@q How can I call you? @a My name is Polly. @e]
   (6)<string>[@q Do you want a cracker? @a Yes. @e]
   (7)<string>[@q Do you wanna cracker? @a Yes. @e]
-  (7)<string>[@q Polly wants a cracker? @a Yes, I want. @e]
+  (8)<string>[@q Polly wants a cracker? @a Yes, I want. @e]
 }

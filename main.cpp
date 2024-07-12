@@ -105,7 +105,7 @@ class trainer
       { std::printf(" %7.2f |", (float)db[root/tok/"w"/i]); }
       std::printf("\n"); } }
 
-  float train(float k = 0.2, int attempts = 1000)
+  float train(float k = 0.2, int attempts = 100)
   { float error = dry_run();
     independency::storage tmp_buffer; store(tmp_buffer);
     for (int i = 0; i < attempts; i++)
@@ -169,25 +169,16 @@ class trainer
 
     return res; }
 
-  float dry_run(bool print = false)
-  { float err = 0;
+  float dry_run()
+  { float err = 0; // the error is the worst case of checkinga
 
     for (std::string item : st.ls(root))
     { std::list<std::string> tokens = tokenize(st[root/item]);
 
-      if (print)
-      { std::printf("\n| N   | Token                |");
-        for (int i = 0; i < vol; i++) { std::printf(" ctx %3d |", i); }
-        std::printf(" Etotal  | Emoment |\n");
-
-        std::printf(  "|-----|----------------------|");
-        for (int i = 0; i < vol + 2; i++) { std::printf("---------|"); }
-        std::printf("\n"); }
-
       float context[vol]; for (int i = 0; i < vol; i++) { context[i] = 0; }
       float context_prev[vol];
       for (int i = 0; i < vol; i++) { context_prev[i] = context[i]; }
-      float err_prev = err;
+      float err_current = 0;
 
       unsigned int counter = 0;
       for (std::string tok : tokens)
@@ -198,16 +189,14 @@ class trainer
         { float err_tmp = 0;
           for (int i = 0; i < vol; i++)
           { err_tmp += abs((float)db[root/tok/"i"/i] - context_prev[i]); }
-          err += err_tmp; }
-
-        if (print)
-        { std::printf("| %3d | %20s |", counter, tok.c_str());
-          for (int i = 0; i < vol; i++) { std::printf(" %7.2f |", context[i]); }
-          std::printf(" %7.2f | %7.2f |\n", err, err - err_prev); }
+          err_current += err_tmp; }
 
         for (int i = 0; i < vol; i++) { context_prev[i] = context[i]; }
-        err_prev = err;
-        counter++; } }
+        counter++; }
+
+      err_current = 100.0 * (err_current / ((float)tokens.size() * vol * 2.0));
+
+      if (err_current > err) { err = err_current; } }
 
     return err; }
 
@@ -282,8 +271,7 @@ int main(int argc, char** argv)
   trainer t(training_db, weights_db, cp.volume);
 
   if (cp.need_training)
-  { // t.print_db();
-    std::printf("\nTraining process\n");
+  { std::printf("\nTraining process\n");
     std::printf("| N   | Error   |\n|-----|---------|\n");
     float error = 0;
     unsigned int counter = 0;
@@ -296,8 +284,7 @@ int main(int argc, char** argv)
         { t.shake(0.1); error_tmp = t.train(0.02); counter = 0; } }
       error = error_tmp;
       std::printf("| %3d | %7.2f |\r", i, error); std::fflush(stdout); }
-    // t.print_db();
-  }
+    std::printf("\n"); }
 
   if (!cp.question.empty())
   { std::printf("\nQ: %s\nA: ", cp.question.c_str());
