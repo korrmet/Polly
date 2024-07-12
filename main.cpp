@@ -105,14 +105,36 @@ class trainer
       { std::printf(" %7.2f |", (float)db[root/tok/"w"/i]); }
       std::printf("\n"); } }
 
-  float train(float k = 0.2, int attempts = 100)
-  { float error = dry_run();
+  // float train(float k = 0.2, int attempts = 100)
+  // { float error = dry_run();
+  //   independency::storage tmp_buffer; store(tmp_buffer);
+  //   for (int i = 0; i < attempts; i++)
+  //   { modify(db, k); float err_tmp = dry_run();
+  //     if (err_tmp < error) { return err_tmp; } 
+  //     restore(tmp_buffer); }
+  //   return error; }
+  
+  float train(float err_prev, float k = 0.2, int attempts = 100)
+  { float err = err_prev; // std::numeric_limits<float>::max();
+
     independency::storage tmp_buffer; store(tmp_buffer);
     for (int i = 0; i < attempts; i++)
-    { modify(db, k); float err_tmp = dry_run();
-      if (err_tmp < error) { return err_tmp; } 
+    { modify(db, k);
+      float worst_case = 0;
+      for (std::string idx : st.ls(root))
+      { std::list<std::string> itokens = tokenize(st[root/idx]);
+        while (itokens.back() != "@a") { itokens.pop_back(); }
+
+        std::list<std::string> etokens = tokenize(st[root/idx]);
+        while (etokens.front() != "@a") { etokens.pop_front(); }
+        etokens.pop_front();
+
+        float tmp = error(etokens, predict(itokens));
+        if (tmp > worst_case) { worst_case = tmp; } }
+      if (worst_case < err) { return worst_case; }
       restore(tmp_buffer); }
-    return error; }
+
+    return err; }
 
   std::list<std::string> test_run(std::string question, int ntokens = 100)
   { std::list<std::string> qtokens = tokenize(question);
@@ -121,14 +143,24 @@ class trainer
     for (std::string tok : qtokens) { tokens.push_back(tok); }
     tokens.push_back("@a");
 
-    float context[vol]; for (int i = 0; i < vol; i++) { context[i] = 0; }
+    return predict(tokens); }
+
+  void shake(float k = 0.1) { modify(db, k); }
+
+  private:
+  float sigmoid(float x) { return 3*x / (1 + abs(3*x)); }
+  float abs(float x) { return (x < 0) ? -x : x; }
+
+  std::list<std::string> predict(std::list<std::string> tokens,
+                                 int ntokens = 100)
+  { std::list<std::string> atokens;
+    float context[vol]; for(int i = 0; i < vol; i++) { context[i] = 0; }
 
     for (std::string tok : tokens)
     { if (!db.chk(root/tok)) { continue; }
       for (int i = 0; i < vol; i++)
       { context[i] = sigmoid(context[i] + (float)db[root/tok/"w"/i]); } }
 
-    std::list<std::string> atokens;
     std::string candidate = suggest(context);
     int counter = 0;
     while (candidate != "@e" && counter < ntokens)
@@ -138,12 +170,6 @@ class trainer
       candidate = suggest(context); counter++; }
 
     return atokens; }
-
-  void shake(float k = 0.1) { modify(db, k); }
-
-  private:
-  float sigmoid(float x) { return 3*x / (1 + abs(3*x)); }
-  float abs(float x) { return (x < 0) ? -x : x; }
 
   void randomize_weights(independency::storage& db)
   { db.parse("");
@@ -246,9 +272,29 @@ class trainer
         buffer[root/tok/"i"/i] = i_tmp;
         buffer[root/tok/"w"/i] = w_tmp; } } }
 
+  /** \brief calculates error between expected and fact token lists
+   *  \param in expected tokens list
+   *  \param out fact tokens list
+   *  \return error ratio */
+  float error(std::list<std::string> in, std::list<std::string> out)
+  { unsigned int incorrect = 0;
+    std::list<std::string>::iterator i = in.begin();
+    std::list<std::string>::iterator o = out.begin();
+
+    while (i != in.end() && o != out.end())
+    { if (*i != *o) { incorrect++; } i++; o++; }
+
+    if (in.size() > out.size()) { incorrect += in.size() - out.size(); }
+    if (out.size() > in.size()) { incorrect += out.size() - in.size(); }
+
+    if (((float)incorrect / (float)in.size()) <= 0.1)
+    { std::printf("!"); std::fflush(stdout); }
+
+    return (float)incorrect / (float)in.size(); }
+
   int vol;
-  independency::storage& st;
-  independency::storage& db;
+  independency::storage& st; // traininge data base
+  independency::storage& db; // weights data base
 };
 
 int main(int argc, char** argv)
@@ -273,15 +319,23 @@ int main(int argc, char** argv)
   if (cp.need_training)
   { std::printf("\nTraining process\n");
     std::printf("| N   | Error   |\n|-----|---------|\n");
-    float error = 0;
+    float error = std::numeric_limits<float>::max();
     unsigned int counter = 0;
-    for (unsigned int i = 0; i < 1000; i++)
-    { float error_tmp = t.train(0.02);
-      if (i < 800)
-      { if (error_tmp == error) { counter++; }
-        else { counter = 0; }
-        if (counter > 10)
-        { t.shake(0.1); error_tmp = t.train(0.02); counter = 0; } }
+    for (unsigned int i = 0; i < 1000 && error > 0.1; i++)
+    { float error_tmp;
+      if (error > 10) { error_tmp = t.train(error, 0.1); }
+      else if (error > 5) { error_tmp = t.train(error, 0.02); }
+      else if (error > 1) { error_tmp = t.train(error, 0.001); } 
+      else if (error < 0.2) { break; }
+      // if (i < 800)
+      // { if (error_tmp == error) { counter++; }
+      //   else { counter = 0; }
+      //   if (counter > 10)
+      //   { if (error > 1) { t.shake(0.5); }
+      //     else if (error > 0.5) { t.shake(0.1); }
+      //     else if (error > 0.1) { t.shake(0.02); }
+      //     counter = 0; error = std::numeric_limits<float>::max();
+      //     continue; } }
       error = error_tmp;
       std::printf("| %3d | %7.2f |\r", i, error); std::fflush(stdout); }
     std::printf("\n"); }
